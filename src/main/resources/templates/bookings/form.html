@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Booking Form</title>
+    <style>
+        body { font-family: Segoe UI, sans-serif; margin: 24px; max-width: 520px; }
+        label { display: block; margin-top: 12px; font-weight: 600; }
+        input[type=text], textarea, input[type=datetime-local] { width: 100%; padding: 6px; box-sizing: border-box; }
+        .err { color: #b00020; font-size: 0.9rem; margin-top: 4px; font-weight: 500; }
+        .btn-group { margin-top: 16px; }
+    </style>
+</head>
+<body>
+<h1 th:text="${bookingId == null} ? 'New Booking' : 'Edit Booking'">New Booking</h1>
+
+<form th:object="${booking}" method="post"
+      th:action="${bookingId == null} ? @{/bookings} : @{/bookings/{id}(id=${bookingId})}">
+
+    <label>Room Name</label>
+    <input type="text" th:field="*{roomName}" placeholder="e.g. A101"/>
+    <div class="err" th:errors="*{roomName}"></div>
+
+    <label>Booked By</label>
+    <input type="text" th:field="*{bookedBy}" placeholder="Person name or student ID"/>
+    <div class="err" th:errors="*{bookedBy}"></div>
+
+    <label>Start Date-Time</label>
+    <input type="datetime-local" th:field="*{startAt}"/>
+    <div class="err" th:errors="*{startAt}"></div>
+
+    <label>End Date-Time</label>
+    <input type="datetime-local" th:field="*{endAt}"/>
+    <div class="err" th:errors="*{endAt}"></div>
+
+    <label>Purpose</label>
+    <textarea th:field="*{purpose}" rows="3" placeholder="Why is the room needed?"></textarea>
+    <div class="err" th:errors="*{purpose}"></div>
+
+    <div class="btn-group">
+        <button type="submit">Save</button>
+        <a th:href="@{/bookings}">Cancel</a>
+    </div>
+</form>
+</body>
+</html>

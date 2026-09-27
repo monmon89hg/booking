@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Meeting Room Bookings</title>
+    <style>
+        body { font-family: Segoe UI, sans-serif; margin: 24px; }
+        table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        a, button { margin-right: 8px; }
+        .alert-error { background-color: #fde8e8; color: #b00020; padding: 10px; border-radius: 4px; margin-bottom: 16px; border: 1px solid #f8b4b4; }
+        .confirmed { color: #0e8a16; font-weight: bold; }
+        .cancelled { color: #888888; text-decoration: line-through; }
+    </style>
+</head>
+<body>
+<h1>Meeting Room Bookings</h1>
+
+<!-- Hiển thị lỗi nếu hủy phòng không thành công (dưới 30 phút) -->
+<div th:if="${errorMessage}" class="alert-error" th:text="${errorMessage}"></div>
+
+<p><a th:href="@{/bookings/new}">New Booking</a></p>
+
+<table>
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Room</th>
+        <th>Booked By</th>
+        <th>Start At</th>
+        <th>End At</th>
+        <th>Purpose</th>
+        <th>Status</th>
+        <th>Actions</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="b : ${bookings}">
+        <td th:text="${b.id}">1</td>
+        <td th:text="${b.roomName}">A101</td>
+        <td th:text="${b.bookedBy}">John</td>
+        <td th:text="${#temporals.format(b.startAt, 'yyyy-MM-dd HH:mm')}"></td>
+        <td th:text="${#temporals.format(b.endAt, 'yyyy-MM-dd HH:mm')}"></td>
+        <td th:text="${b.purpose}">Team Sync</td>
+        <td>
+            <span th:class="${b.status.name() == 'CONFIRMED' ? 'confirmed' : 'cancelled'}" th:text="${b.status}"></span>
+        </td>
+        <td>
+            <!-- Chỉ cho phép Edit và Cancel nếu trạng thái là CONFIRMED -->
+            <span th:if="${b.status.name() == 'CONFIRMED'}">
+                <a th:href="@{/bookings/{id}/edit(id=${b.id})}">Edit</a>
+                <form th:action="@{/bookings/{id}/cancel(id=${b.id})}" method="post" style="display:inline">
+                    <button type="submit" onclick="return confirm('Are you sure you want to cancel?')">Cancel</button>
+                </form>
+            </span>
+        </td>
+    </tr>
+    </tbody>
+</table>
+</body>
+</html>
