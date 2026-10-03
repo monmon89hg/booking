@@ -3,51 +3,72 @@ package com.example.booking.service;
 import com.example.booking.dto.BookingRequest;
 import com.example.booking.model.Booking;
 import com.example.booking.model.BookingStatus;
+import com.example.booking.repository.BookingRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
+@Transactional // Đảm bảo mọi thao tác với database được bọc trong Transaction
 public class BookingService {
-    private final List<Booking> store = new ArrayList<>();
-    private final AtomicLong sequence = new AtomicLong(1);
 
-    public List<Booking> findAll() {
-        return new ArrayList<>(store);
+    private final BookingRepository bookingRepository;
+
+    // Tiêm (Inject) BookingRepository vào Service
+    public BookingService(BookingRepository bookingRepository) {
+        this.bookingRepository = bookingRepository;
     }
 
+    // 1. Lấy tất cả bookings từ database
+    @Transactional(readOnly = true)
+    public List<Booking> findAll() {
+        return bookingRepository.findAll();
+    }
+
+    // 2. Tìm 1 booking theo ID
+    @Transactional(readOnly = true)
     public Booking findById(Long id) {
-        return store.stream()
-                .filter(b -> b.getId().equals(id))
-                .findFirst()
+        return bookingRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Booking not found: " + id));
     }
 
-    // Kiểm tra trùng lịch cùng phòng (chỉ xét CONFIRMED, bỏ qua booking đang xét nếu đang Edit)
+    // 3. Kiểm tra trùng phòng (chỉ xét các booking CONFIRMED)
+    @Transactional(readOnly = true)
     public boolean hasRoomOverlap(Long currentId, String roomName, LocalDateTime start, LocalDateTime end) {
-        return store.stream()
-                .filter(b -> b.getStatus() == BookingStatus.CONFIRMED)
+        List<Booking> roomBookings = bookingRepository.findByRoomNameIgnoreCaseAndStatus(
+                roomName.trim(), 
+                BookingStatus.CONFIRMED
+        );
+
+        return roomBookings.stream()
                 .filter(b -> currentId == null || !b.getId().equals(currentId))
-                .filter(b -> b.getRoomName().equalsIgnoreCase(roomName.trim()))
                 .anyMatch(b -> start.isBefore(b.getEndAt()) && end.isAfter(b.getStartAt()));
     }
 
-    // Đếm số booking CONFIRMED hiện tại của 1 người
+    // 4. Đếm số booking CONFIRMED của 1 người (để kiểm tra quy tắc tối đa 2 lịch)
+    @Transactional(readOnly = true)
     public long countActiveBookings(String bookedBy, Long excludeId) {
-        return store.stream()
-                .filter(b -> b.getStatus() == BookingStatus.CONFIRMED)
-                .filter(b -> excludeId == null || !b.getId().equals(excludeId))
-                .filter(b -> b.getBookedBy().equalsIgnoreCase(bookedBy.trim()))
-                .count();
+        if (excludeId == null) {
+            return bookingRepository.countByBookedByIgnoreCaseAndStatus(
+                    bookedBy.trim(), 
+                    BookingStatus.CONFIRMED
+            );
+        } else {
+            return bookingRepository.countByBookedByIgnoreCaseAndStatusAndIdNot(
+                    bookedBy.trim(), 
+                    BookingStatus.CONFIRMED, 
+                    excludeId
+            );
+        }
     }
 
+    // 5. Tạo mới booking và lưu vào MySQL
     public Booking create(BookingRequest req) {
         Booking booking = new Booking(
-                sequence.getAndIncrement(),
+                null, // ID để null vì MySQL tự sinh bằng IDENTITY (auto-increment)
                 req.getRoomName().trim(),
                 req.getBookedBy().trim(),
                 req.getStartAt(),
@@ -55,10 +76,10 @@ public class BookingService {
                 req.getPurpose().trim(),
                 BookingStatus.CONFIRMED
         );
-        store.add(booking);
-        return booking;
+        return bookingRepository.save(booking);
     }
 
+    // 6. Cập nhật booking theo ID và lưu vào MySQL
     public Booking update(Long id, BookingRequest req) {
         Booking booking = findById(id);
         booking.setRoomName(req.getRoomName().trim());
@@ -66,10 +87,10 @@ public class BookingService {
         booking.setStartAt(req.getStartAt());
         booking.setEndAt(req.getEndAt());
         booking.setPurpose(req.getPurpose().trim());
-        return booking;
+        return bookingRepository.save(booking);
     }
 
-    // Hủy booking (Kiểm tra điều kiện trước 30 phút, không xóa record mà chỉ đổi status)
+    // 7. Hủy booking: kiểm tra điều kiện trước 30 phút, đổi trạng thái thành CANCELLED
     public void cancel(Long id) {
         Booking booking = findById(id);
         if (booking.getStatus() == BookingStatus.CANCELLED) {
@@ -80,5 +101,6 @@ public class BookingService {
             throw new IllegalStateException("Booking can only be cancelled at least 30 minutes before start time.");
         }
         booking.setStatus(BookingStatus.CANCELLED);
+        bookingRepository.save(booking);
     }
 }
